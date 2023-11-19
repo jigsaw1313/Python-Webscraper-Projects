@@ -1,5 +1,4 @@
-# Python WebScraping
-My exercise for WebScraping
+
 # Web Scraping Projects
 This repository contains a collection of web scraping projects written in Python. The projects are designed to demonstrate different techniques and libraries for scraping data from websites, including Beautiful Soup, Scrapy, and Selenium.
 
