@@ -1,4 +1,3 @@
-```markdown
 # Portfolio Valuation
 
 This Python application scrapes price information from Google Finance for given stock tickers and exchanges, summarizes portfolio valuation, and reflects amounts in USD.
