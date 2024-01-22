@@ -1,57 +1,30 @@
+"""
+This spider function is same as books spider but we do not use selenium to parse pages.
+we are going to navigate each page by using scrapy framework which is lot faster than 
+selenium framework.
+"""
+import glob
+import os
 import scrapy
-import time
-
-from scrapy.selector import Selector
 from scrapy.http import Request
 
-from selenium.webdriver.chrome.service import Service
-from selenium.common.exceptions import NoSuchElementException
-from selenium import webdriver
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
 
-
-class BooksSpider(scrapy.Spider):
-    name = "books"
+class Books2Spider(scrapy.Spider):
+    name = "books2"
     allowed_domains = ["books.toscrape.com"]
     start_urls = ["https://books.toscrape.com"]
 
-    def start_requests(self):
-        # Initialize ChromeDriver and open the main page
-        self.s = Service("chromedriver.exe")
-        self.driver = webdriver.Chrome(service=self.s)
-        self.driver.get("https://books.toscrape.com")
-        
-        # Extract book URLs from the main page and send requests to parse_book callback
-        select = Selector(text=self.driver.page_source)
-        books = select.xpath("//h3/a/@href").extract()
+    def parse(self, response):
+        books = response.xpath("//h3/a/@href").extract()
         for book in books:
-            url = f"https://books.toscrape.com/{book}"
-            yield Request(url, callback=self.parse_book)
-        
-        # Continuously navigate to the next page and extract book URLs until there are no more pages
-        while True:
-            try:
-                
-                next_page = WebDriverWait(self.driver, 2).until(
-                    EC.element_to_be_clickable((By.XPATH, "//a[text()='next']")))
-                time.sleep(2)
-                self.logger.info("Seelping for 2 seconds...")
-                next_page.click()
-                
-                # Extract book URLs from the current page and send requests to parse_book callback
-                select = Selector(text=self.driver.page_source)
-                books = select.xpath("//h3/a/@href").extract()
-                for book in books:
-                    url = "https://books.toscrape.com/catalogue/" + book
-                    yield Request(url, callback=self.parse_book)
-                    
-            except NoSuchElementException as e:
-                self.logger.info('No More Pages to Load....')
-                self.driver.quit() # Close the browser when there are no more pages
-                break
+            absolute_url = response.urljoin(book)
+            yield Request(absolute_url, callback=self.parse_book)
             
+        # Process next page
+        next_page_url = response.xpath("//a[text()='next']/@href").extract_first()
+        absolute_next_page_url = response.urljoin(next_page_url)
+        yield Request(absolute_next_page_url, callback=self.parse)
+
     def parse_book(self, response):
         # Extract book details from the book page
         title = response.css("h1::text").extract_first()
@@ -80,3 +53,7 @@ class BooksSpider(scrapy.Spider):
             'UPC': upc,
             'Stock': stock 
         }
+
+    def close(self, reason):
+        csv_file = max(glob.iglob('*.csv'), key=os.path.getctime)
+        os.rename(csv_file, 'output.csv')
