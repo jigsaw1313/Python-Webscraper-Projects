@@ -18,17 +18,19 @@ class BooksSpider(scrapy.Spider):
     start_urls = ["https://books.toscrape.com"]
 
     def start_requests(self):
+        # Initialize ChromeDriver and open the main page
         self.s = Service("chromedriver.exe")
         self.driver = webdriver.Chrome(service=self.s)
         self.driver.get("https://books.toscrape.com")
         
-        
+        # Extract book URLs from the main page and send requests to parse_book callback
         select = Selector(text=self.driver.page_source)
         books = select.xpath("//h3/a/@href").extract()
         for book in books:
             url = f"https://books.toscrape.com/{book}"
             yield Request(url, callback=self.parse_book)
-            
+        
+        # Continuously navigate to the next page and extract book URLs until there are no more pages
         while True:
             try:
                 
@@ -38,6 +40,7 @@ class BooksSpider(scrapy.Spider):
                 self.logger.info("Seelping for 2 seconds...")
                 next_page.click()
                 
+                # Extract book URLs from the current page and send requests to parse_book callback
                 select = Selector(text=self.driver.page_source)
                 books = select.xpath("//h3/a/@href").extract()
                 for book in books:
@@ -46,24 +49,34 @@ class BooksSpider(scrapy.Spider):
                     
             except NoSuchElementException as e:
                 self.logger.info('No More Pages to Load....')
-                self.driver.quit()
+                self.driver.quit() # Close the browser when there are no more pages
                 break
             
     def parse_book(self, response):
-        title = response.xpath("//h1/text()").get()
-        type = response.xpath("//tbody/tr[2]/td/text()").get()
-        price = response.xpath("//div[@class='col-sm-6 product_main']/p[1]/text()").get()
-        tax = response.xpath("//th[text()='Tax']/following-sibling::td/text()").get()
-        stock = response.xpath("(//div[@class='col-sm-6 product_main']//p)[2]/text()[2]").get()
-        description = response.xpath("//article[@class='product_page']/p/text()").get()
-        upc = response.xpath("//tbody/tr/td/text()").get()
+        # Extract book details from the book page
+        title = response.css("h1::text").extract_first()
+        price = response.xpath("//*[@class='price_color']/text()").extract_first()
+        book_type = response.xpath("//th[text()='Product Type']/following-sibling::td/text()").extract_first()
         
+        img_url = response.xpath("//img/@src").extract_first()
+        img_url = img_url.replace("../..", "http://books.toscrape.com")
+        
+        rating = response.xpath("//*[contains(@class, 'star-rating')]/@class").extract_first()
+        rating = rating.replace("star-rating", "")
+        
+        description = response.xpath("//article[@class='product_page']/p/text()").get()
+        tax = response.xpath("//th[text()='Tax']/following-sibling::td/text()").extract_first()
+        upc = response.xpath("//th[text()='UPC']/following-sibling::td/text()").extract_first()
+        stock = response.xpath("//th[text()='Availability']/following-sibling::td/text()").get()
+        
+        # Yield the extracted data as a dictionary
         yield {
             'Title': title,
-            'Type': type,
+            'Image_URL': img_url,
+            'Book Type': book_type,
             'Price': price,
             'Tax': tax,
-            'Stock': stock,
             'Description': description,
-            'UPC': upc
+            'UPC': upc,
+            'Stock': stock 
         }
