@@ -1,4 +1,8 @@
+import os
+import glob
+import csv
 import scrapy
+from pyodbc import connect
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -17,7 +21,7 @@ class JobsSpider(scrapy.Spider):
     # Initialize init method.
     def __init__(self, *args, **kwargs):
         super(JobsSpider, self).__init__(*args, **kwargs)
-        self.chrome_path = "<URL_PATH_OF_CHROMEDRIVER>" # Put path into chromedriver
+        self.chrome_path = "PATH_TO_CHROMEDRIVER" # Put path into chromedriver
         self.chrome_options = Options()
         self.chrome_options.add_argument("--headless") # set selenium in headless mode.
         self.service = Service(self.chrome_path)  # Path of chromedriver
@@ -49,4 +53,27 @@ class JobsSpider(scrapy.Spider):
             yield scrapy.Request(next_url, callback=self.parse)
 
     def closed(self, reason):
+        csv_file = max(glob.iglob('*.csv'), key=os.path.getctime)
+        
+        
+        # SqlServer Connection. You may need to configure below variables as per 
+        # Your local machine's sql server configuration.
+        db = connect(Driver='{ODBC Driver 18 for SQL Server}',
+                        Server='<SQL_SERVER_ADDRESS',
+                        Database= "<DB_NAME>",
+                        Trusted_Connection='yes',
+                        TrustServerCertificate='yes')
+        # Creating Cursor
+        cursor = db.cursor()
+        
+        with open(csv_file, 'r') as file:
+            csv_data = csv.reader(file)
+            row_count = 0
+            for row in csv_data:
+                if row_count != 0:
+                    cursor.execute("""INSERT INTO zumper(Location, Status, URL, Address,Utilities, 
+                                    Bathroom, Bedroom, Rent) VALUES(?, ?, ?, ?, ?, ?, ?, ?)""", row)
+                row_count += 1
+        db.commit()
+        cursor.close()
         self.driver.quit()
